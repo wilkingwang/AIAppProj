@@ -3,7 +3,8 @@ import os
 import dashscope
 from dashscope.api_entities.dashscope_response import Role
 
-dashscope.api_key = "sk-f85d4acdec0b42b2a46fc87ee877a19c"
+api_key = os.environ.get('DASHSCOPE_API_KEY')
+dashscope.api_key = api_key
 
 def main():
     review = '这款音效特别好 给你意想不到的音质。'

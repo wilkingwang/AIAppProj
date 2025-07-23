@@ -4,7 +4,8 @@ import base64
 import dashscope
 from dashscope.api_entities.dashscope_response import Role
 
-dashscope.api_key = "sk-f85d4acdec0b42b2a46fc87ee877a19c"
+api_key = os.environ.get('DASHSCOPE_API_KEY')
+dashscope.api_key = api_key
 
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
