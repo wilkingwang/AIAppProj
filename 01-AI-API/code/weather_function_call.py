@@ -32,7 +32,7 @@ def llm_call(messages):
         response = dashscope.Generation.call(
             model='qwen-max',
             messages=messages,
-            functions=functions ,
+            functions=functions,
             result_format='message'
         )
 
