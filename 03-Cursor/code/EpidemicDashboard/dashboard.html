@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>香港疫情数据可视化大屏</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/extension/bmap.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        .dashboard {
+            width: 100vw;
+            height: 100vh;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 100px 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .header {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+        
+        .chart-container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            position: relative;
+        }
+        
+        .chart-title {
+            position: absolute;
+            top: 10px;
+            left: 20px;
+            font-size: 1.2em;
+            font-weight: bold;
+            z-index: 10;
+        }
+        
+        .chart {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            height: 100%;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+        
+        .large-chart {
+            grid-column: span 2;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>香港各区疫情数据实时监控大屏</h1>
+        </div>
+        
+        <div class="chart-container large-chart">
+            <div class="chart-title">地区新增确诊趋势</div>
+            <div id="trendChart" class="chart"></div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">实时数据统计</div>
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalCases">0</div>
+                    <div class="stat-label">累计确诊</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="todayCases">0</div>
+                    <div class="stat-label">今日新增</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="activeDistricts">0</div>
+                    <div class="stat-label">涉及区域</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">香港地区分布</div>
+            <div id="mapChart" class="chart"></div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">每日新增对比</div>
+            <div id="barChart" class="chart"></div>
+        </div>
+        
+        <div class="chart-container large-chart">
+            <div class="chart-title">地区累计确诊排名</div>
+            <div id="rankChart" class="chart"></div>
+        </div>
+    </div>
+
+    <script>
+        let dashboardData = null;
+        
+        // 加载真实数据
+        async function loadData() {
+            try {
+                const response = await fetch('dashboard_data.json');
+                dashboardData = await response.json();
+                updateCharts();
+                updateStats();
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                // 使用默认模拟数据
+                dashboardData = {
+                    dates: ['2025-03-01', '2025-03-08', '2025-03-15', '2025-03-22'],
+                    trend: [
+                        {name: '中西区', data: [10, 15, 8, 12]},
+                        {name: '湾仔区', data: [8, 12, 10, 15]},
+                        {name: '东区', data: [15, 20, 12, 18]},
+                        {name: '南区', data: [5, 8, 6, 10]},
+                        {name: '油尖旺区', data: [20, 25, 18, 22]}
+                    ],
+                    pie: [
+                        {name: '中西区', value: 150},
+                        {name: '湾仔区', value: 120},
+                        {name: '东区', value: 200},
+                        {name: '南区', value: 80},
+                        {name: '油尖旺区', value: 250}
+                    ],
+                    daily: [58, 80, 54, 77],
+                    rank: [
+                        {name: '油尖旺区', value: 250},
+                        {name: '东区', value: 200},
+                        {name: '中西区', value: 150},
+                        {name: '湾仔区', value: 120},
+                        {name: '南区', value: 80}
+                    ],
+                    summary: {
+                        total_cases: 800,
+                        today_cases: 77,
+                        total_districts: 18,
+                        latest_date: '2025-03-22'
+                    }
+                };
+                updateCharts();
+                updateStats();
+            }
+        }
+
+        // 初始化图表
+        const trendChart = echarts.init(document.getElementById('trendChart'));
+        const mapChart = echarts.init(document.getElementById('mapChart'));
+        const barChart = echarts.init(document.getElementById('barChart'));
+        const rankChart = echarts.init(document.getElementById('rankChart'));
+
+        function updateCharts() {
+            if (!dashboardData) return;
+
+            // 趋势图配置
+            const trendOption = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' }
+                },
+                legend: {
+                    data: dashboardData.trend.map(item => item.name),
+                    textStyle: { color: '#fff' }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: dashboardData.dates,
+                    axisLine: { lineStyle: { color: '#fff' } }
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLine: { lineStyle: { color: '#fff' } }
+                },
+                series: dashboardData.trend.map(item => ({
+                    name: item.name,
+                    type: 'line',
+                    smooth: true,
+                    data: item.data,
+                    lineStyle: { width: 3 },
+                    areaStyle: { opacity: 0.3 }
+                }))
+            };
+
+            // 地图配置 - 使用简化的香港地区散点图
+            const mapOption = {
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        return params.name + '<br/>累计确诊: ' + params.value[2] + '例';
+                    }
+                },
+                grid: {
+                    left: '5%',
+                    right: '5%',
+                    top: '5%',
+                    bottom: '5%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'value',
+                    min: 113.8,
+                    max: 114.4,
+                    axisLine: { show: false },
+                    axisTick: { show: false },
+                    axisLabel: { show: false },
+                    splitLine: { show: false }
+                },
+                yAxis: {
+                    type: 'value',
+                    min: 22.2,
+                    max: 22.6,
+                    axisLine: { show: false },
+                    axisTick: { show: false },
+                    axisLabel: { show: false },
+                    splitLine: { show: false }
+                },
+                series: [{
+                    name: '香港地区分布',
+                    type: 'scatter',
+                    data: dashboardData.map || [],
+                    symbolSize: function(val) {
+                        return Math.max(val[2] / 5, 12);
+                    },
+                    itemStyle: {
+                        color: new echarts.graphic.RadialGradient(0.5, 0.5, 0.5, [
+                            { offset: 0, color: '#ff4757' },
+                            { offset: 1, color: '#ff3838' }
+                        ]),
+                        shadowBlur: 20,
+                        shadowColor: '#ff4757'
+                    },
+                    label: {
+                        show: true,
+                        position: 'top',
+                        formatter: '{b}',
+                        color: '#fff',
+                        fontSize: 12
+                    },
+                    emphasis: {
+                        scale: 1.5,
+                        label: {
+                            fontSize: 14,
+                            fontWeight: 'bold'
+                        }
+                    }
+                }]
+            };
+
+            // 柱状图配置
+            const barOption = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: dashboardData.dates,
+                    axisLine: { lineStyle: { color: '#fff' } }
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLine: { lineStyle: { color: '#fff' } }
+                },
+                series: [{
+                    name: '每日新增',
+                    type: 'bar',
+                    data: dashboardData.daily,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#83bff6' },
+                            { offset: 0.5, color: '#188df0' },
+                            { offset: 1, color: '#188df0' }
+                        ])
+                    }
+                }]
+            };
+
+            // 排名图配置
+            const rankOption = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'value',
+                    axisLine: { lineStyle: { color: '#fff' } }
+                },
+                yAxis: {
+                    type: 'category',
+                    data: dashboardData.rank.map(item => item.name).reverse(),
+                    axisLine: { lineStyle: { color: '#fff' } }
+                },
+                series: [{
+                    name: '累计确诊',
+                    type: 'bar',
+                    data: dashboardData.rank.map(item => item.value).reverse(),
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(1, 0, 0, 0, [
+                            { offset: 0, color: '#fccb05' },
+                            { offset: 1, color: '#f5804d' }
+                        ])
+                    }
+                }]
+            };
+
+            // 设置图表配置
+            trendChart.setOption(trendOption);
+            mapChart.setOption(mapOption);
+            barChart.setOption(barOption);
+            rankChart.setOption(rankOption);
+        }
+
+        function updateStats() {
+            if (!dashboardData || !dashboardData.summary) return;
+            
+            document.getElementById('totalCases').textContent = dashboardData.summary.total_cases;
+            document.getElementById('todayCases').textContent = dashboardData.summary.today_cases;
+            document.getElementById('activeDistricts').textContent = dashboardData.summary.total_districts;
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData();
+        });
+
+        // 响应式处理
+            window.addEventListener('resize', () => {
+                trendChart.resize();
+                mapChart.resize();
+                barChart.resize();
+                rankChart.resize();
+            });
+    </script>
+</body>
+</html>
