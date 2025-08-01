@@ -1,11 +1,18 @@
+import os
+import openai
 from PyPDF2 import PdfReader
 from langchain.chains.question_answering import load_qa_chain
-from langchain_openai import OpenAI
+from langchain_openai import ChatOpenAI
+from langchain.llms.tongyi import Tongyi
 from langchain_community.callbacks.manager import get_openai_callback
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from typing import List, Tuple
+
+openai.api_key = os.getenv('DASHSCOPE_API_KEY')
+openai.base_url = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
 
 def extract_text_with_page_number(pdf) -> Tuple[str, List[int]]:
     """
@@ -56,7 +63,7 @@ def process_text_with_splitter(text: str, page_numbers: List[int]) -> FAISS:
     print(f"文本被分割成 {len(chunks)} 个块")
 
     # 创建嵌入模型
-    embeddings = OpenAIEmbeddings()
+    embeddings = HuggingFaceEmbeddings()
 
     # 从文本块创建知识库
     knowledgeBase = FAISS.from_texts(chunks, embeddings)
@@ -79,8 +86,10 @@ if query:
     # 执行相似度搜索，找到与查询相关的文档
     docs = knowledgeBase.similarity_search(query)
 
-    llm = OpenAI(
-        base_url='https://dashscope.aliyuncs.com/compatible-mode/v1'
+    llm = Tongyi(
+        model="qwen-plus",
+        api_key='sk-72315aebf5b74cf8952db8173f114c3d',
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1/chat"
     )
 
     # 加载问答链
