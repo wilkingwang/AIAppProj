@@ -96,4 +96,28 @@ def process_text_with_splitter(text: str, char_page_mapping: List[int], save_pat
     print(f"页码映射完成，共 {len(page_info)} 个文本块")
 
     # 如果提供了保存路径，则保存向量数据库也页码信息
+    if save_path:
+        os.makedirs(save_path, exist_ok=True)
+
+        # 保存FAISS向量数据库
+        knowledgeBase.save_local(save_path)
+        print(f"向量数据库已保存到: {save_path}")
+
+        # 保存页码信息到同一目录
+        with open(os.path.join(save_path, "page_info.pkl"), "wb") as f:
+            pickle.dump(page_info, f)
+            print(f"页码信息已保存到：{os.path.join(save_path, "page_info.pkl")}")
+
+    return knowledgeBase
+
+def load_knowledge_base(load_path: str, embeddings = None) -> FAISS:
+    """
+    从磁盘加载向量数据库和页码信息
+    参数：
+        load_path：向量数据库的保存路径
+        embeddinds：可选，嵌入模型。如果为None，将创建一个新的DashScopeEmbeddings实例
+
+    返回：
+        knowledgeBase：加载的FAISS向量数据库对象
+    """
 
