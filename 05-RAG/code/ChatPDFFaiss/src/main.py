@@ -5,6 +5,7 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_community.vectorstores import FAISS
+from langchain_community.llms.tongyi import Tongyi
 from typing import List, Tuple
 
 DASHSCOPE_API_KEY = os.getenv('DASHSCOPE_API_KEY')
@@ -75,7 +76,7 @@ def process_text_with_splitter(text: str, char_page_mapping: List[int], save_pat
         chunk_end = current_pos + len(chunk)
 
         # 找到这个文本块中字符对应的页码
-        chunk_pages = char_page_mapping[chunk_start, chunk_end]
+        chunk_pages = char_page_mapping[chunk_start:chunk_end]
 
         # 取页码的众数（出现最多的页码），作为该块的页码
         if chunk_pages:
@@ -120,4 +121,72 @@ def load_knowledge_base(load_path: str, embeddings = None) -> FAISS:
     返回：
         knowledgeBase：加载的FAISS向量数据库对象
     """
+    if embeddings is None:
+        embeddings = DashScopeEmbeddings(
+            model="text-embedding-v1",
+            dashscope_api_key=DASHSCOPE_API_KEY
+        )
 
+    # 加载FAISS向量数据库，添加allow_dangerous_deserialization=True参数允许反序列化
+    knowledgeBase = FAISS.load_local(load_path, embeddings, allow_dangerous_deserialization=True)
+    print(f"向量数据库已从 {load_path} 加载.")
+
+    # 加载页码信息
+    page_info_path = os.path.join(load_path, "page_info.pkl")
+    if os.path.exists(page_info_path):
+        with open(page_info_path, "rb") as f:
+            page_info = pickle.load(f)
+
+        knowledgeBase.page_info = page_info
+        print(f"页码信息已加载。")
+    else:
+        print("警告，未找到页码信息文件。")
+    
+    return knowledgeBase
+
+pdf_reader = PdfReader('../data/浦发上海浦东发展银行西安分行个金客户经理考核办法.pdf')
+
+text, char_page_mapping = extract_text_with_page_number(pdf_reader)
+
+print(f'提取的文本长度: {len(text)} 个字符.')
+
+save_dir = './data/vector_db'
+knowledgeBase = process_text_with_splitter(text, char_page_mapping, save_path=save_dir)
+
+# embeddings = DashScopeEmbeddings(
+#     model="text-embedding-v1",
+#     dashscope_api_key=DASHSCOPE_API_KEY
+# )
+
+# loaded_knowledge_base = load_knowledge_base(save_dir, embeddings)
+
+# docs = load_knowledge_base.similarity_search("客户经理每年评聘申报时间是怎样的？")
+
+llm = Tongyi(model="deepseek-v3", dashscope_api_key=DASHSCOPE_API_KEY)
+
+print(DASHSCOPE_API_KEY)
+input_text = "用50个字左右阐述，生命的意义在于"
+llm.invoke(input_text)
+
+# query = "客户经理被投诉了，投诉一次扣多少分"
+# if query:
+#     docs = knowledgeBase.similarity_search(query, k=10)
+
+#     chain = load_qa_chain(llm, chain_type="stuff")
+
+#     input_data = {"input_documents": docs, "question":query}
+
+#     response = chain.invoke(input=input_data)
+#     print(response['output_text'])
+
+#     print("来源：")
+#     unique_pages = set()
+#     for doc in docs:
+#         text_content = getattr(doc, "page_content", "")
+#         source_page = knowledgeBase.page_info.get(
+#             text_content.strip(), "未知"
+#         )
+
+#         if source_page not in unique_pages:
+#             unique_pages.add(source_page)
+#             print(f'文本块页码：{source_page}')
