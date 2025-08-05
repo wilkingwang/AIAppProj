@@ -162,31 +162,27 @@ knowledgeBase = process_text_with_splitter(text, char_page_mapping, save_path=sa
 
 # docs = load_knowledge_base.similarity_search("客户经理每年评聘申报时间是怎样的？")
 
-llm = Tongyi(model="deepseek-v3", dashscope_api_key=DASHSCOPE_API_KEY)
+llm = Tongyi(model="qwen-turbo", dashscope_api_key=DASHSCOPE_API_KEY)
 
-print(DASHSCOPE_API_KEY)
-input_text = "用50个字左右阐述，生命的意义在于"
-llm.invoke(input_text)
+query = "客户经理被投诉了，投诉一次扣多少分"
+if query:
+    docs = knowledgeBase.similarity_search(query, k=10)
 
-# query = "客户经理被投诉了，投诉一次扣多少分"
-# if query:
-#     docs = knowledgeBase.similarity_search(query, k=10)
+    chain = load_qa_chain(llm, chain_type="stuff")
 
-#     chain = load_qa_chain(llm, chain_type="stuff")
+    input_data = {"input_documents": docs, "question":query}
 
-#     input_data = {"input_documents": docs, "question":query}
+    response = chain.invoke(input=input_data)
+    print(response['output_text'])
 
-#     response = chain.invoke(input=input_data)
-#     print(response['output_text'])
+    print("来源：")
+    unique_pages = set()
+    for doc in docs:
+        text_content = getattr(doc, "page_content", "")
+        source_page = knowledgeBase.page_info.get(
+            text_content.strip(), "未知"
+        )
 
-#     print("来源：")
-#     unique_pages = set()
-#     for doc in docs:
-#         text_content = getattr(doc, "page_content", "")
-#         source_page = knowledgeBase.page_info.get(
-#             text_content.strip(), "未知"
-#         )
-
-#         if source_page not in unique_pages:
-#             unique_pages.add(source_page)
-#             print(f'文本块页码：{source_page}')
+        if source_page not in unique_pages:
+            unique_pages.add(source_page)
+            print(f'文本块页码：{source_page}')
