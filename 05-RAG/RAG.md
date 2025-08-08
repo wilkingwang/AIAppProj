@@ -22,4 +22,10 @@
 ## Generation
 
 # 课后补充
-## qa_chain类型
+## qa_chain type类型
+
+## langchain学习
+
+## Faiss使用
+
+## 
