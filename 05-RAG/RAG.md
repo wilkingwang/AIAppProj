@@ -20,3 +20,6 @@
 ## Retrieval
 
 ## Generation
+
+# 课后补充
+## qa_chain类型
