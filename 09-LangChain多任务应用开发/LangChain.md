@@ -39,7 +39,17 @@ Reasoning and Actioning就是在推理的过程中分步骤给出结果，在原
 #### Chain
 一些列
 
+- ConversationChain
+https://python.langchain.com/api_reference/langchain/chains/langchain.chains.conversation.base.ConversationChain.html
+
 #### 任务链
+
+#### Agent
+
+##### Agent类型
+- zero-shot-react-description：根据工具的描述和请求内容来决定使用哪个工具
+- react-docstore：使用ReAct框架和docsotre交互使用Search或Lookup工具，前者用来搜索，后者寻找term
+- convertsational-react-description：为会话设置而设计的代理，他的prompt会被设计的具有会话性，且还是会使用ReAct框架来决定使用哪个工具，并且将过往的会话交互存入内存
 
 ### LangGraph
 
