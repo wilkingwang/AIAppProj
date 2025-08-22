@@ -1,0 +1,8 @@
+qwen-agent
+dashscope
+pandas
+numpy
+matplotlib
+sqlalchemy
+mysql-connector-python
+attrs
