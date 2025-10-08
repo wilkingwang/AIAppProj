@@ -198,6 +198,76 @@ def create_car_features(data):
         data[f'{col}_outlier'] = ((data[col] < (Q1 - 1.5 * IQR)) | (data[col] > (Q3 + 1.5 * IQR))).astype(int)
         data[col] = data[col].clip(Q1 - 1.5 * IQR, Q3 + 1.5 * IQR)
     
+    # 新增交互特征 - 品牌与车身类型交互
+    print("添加品牌与车身类型交互特征...")
+    # 创建品牌与车身类型的组合特征
+    data['brand_bodyType'] = data['brand'].astype(str) + '_' + data['bodyType'].astype(str)
+    
+    # 计算每个品牌-车身类型组合的车辆数量
+    brand_bodyType_counts = data.groupby(['brand', 'bodyType']).size().reset_index(name='brand_bodyType_count')
+    data = data.merge(brand_bodyType_counts, on=['brand', 'bodyType'], how='left')
+    
+    # 计算每个品牌-车身类型组合的平均功率
+    brand_bodyType_power = data.groupby(['brand', 'bodyType'])['power'].mean().reset_index(name='brand_bodyType_power_mean')
+    data = data.merge(brand_bodyType_power, on=['brand', 'bodyType'], how='left')
+    
+    # 计算每个品牌-车身类型组合的平均里程
+    brand_bodyType_km = data.groupby(['brand', 'bodyType'])['kilometer'].mean().reset_index(name='brand_bodyType_km_mean')
+    data = data.merge(brand_bodyType_km, on=['brand', 'bodyType'], how='left')
+    
+    # 计算该品牌-车身类型组合在该品牌中的占比
+    brand_total_counts = data.groupby('brand').size().reset_index(name='brand_total_count')
+    data = data.merge(brand_total_counts, on='brand', how='left')
+    data['brand_bodyType_ratio'] = data['brand_bodyType_count'] / data['brand_total_count']
+    
+    # 新增交互特征 - 品牌与变速箱交互
+    print("添加品牌与变速箱交互特征...")
+    # 创建品牌与变速箱的组合特征
+    data['brand_gearbox'] = data['brand'].astype(str) + '_' + data['gearbox'].astype(str)
+    
+    # 计算每个品牌-变速箱组合的车辆数量
+    brand_gearbox_counts = data.groupby(['brand', 'gearbox']).size().reset_index(name='brand_gearbox_count')
+    data = data.merge(brand_gearbox_counts, on=['brand', 'gearbox'], how='left')
+    
+    # 计算每个品牌-变速箱组合的平均功率
+    brand_gearbox_power = data.groupby(['brand', 'gearbox'])['power'].mean().reset_index(name='brand_gearbox_power_mean')
+    data = data.merge(brand_gearbox_power, on=['brand', 'gearbox'], how='left')
+    
+    # 计算该品牌-变速箱组合在该品牌中的占比
+    data['brand_gearbox_ratio'] = data['brand_gearbox_count'] / data['brand_total_count']
+    
+    # 新增交互特征 - 车龄与行驶里程交互
+    print("添加车龄与行驶里程交互特征...")
+    # 创建车龄与里程的直接交互（乘积）
+    data['age_km'] = data['vehicle_age_years'] * data['kilometer']
+    
+    # 创建车龄与里程的比率特征（每年平均行驶里程）
+    data['km_per_year'] = data['kilometer'] / (data['vehicle_age_years'] + 0.1)  # 加0.1避免除零
+    
+    # 创建车龄分段（更细致的分段）
+    data['age_segment_detailed'] = pd.cut(data['vehicle_age_years'], 
+                                         bins=[-0.01, 0.5, 1, 2, 3, 5, 8, 15, 100], 
+                                         labels=['0-0.5年', '0.5-1年', '1-2年', '2-3年', '3-5年', '5-8年', '8-15年', '15年以上'])
+    
+    # 创建里程分段
+    data['km_segment'] = pd.cut(data['kilometer'], 
+                               bins=[0, 20000, 50000, 80000, 120000, 200000, 1000000], 
+                               labels=['0-2万', '2-5万', '5-8万', '8-12万', '12-20万', '20万以上'])
+    
+    # 创建车龄-里程组合特征
+    data['age_km_segment'] = data['age_segment_detailed'].astype(str) + '_' + data['km_segment'].astype(str)
+    
+    # 车龄与里程的非线性交互特征
+    data['age_km_log'] = np.log1p(data['vehicle_age_years']) * np.log1p(data['kilometer'])
+    data['age_km_sqrt'] = np.sqrt(data['vehicle_age_years']) * np.sqrt(data['kilometer'])
+    data['age_km_square'] = (data['vehicle_age_years'] ** 2) * (data['kilometer'] ** 2)
+    
+    # 创建高强度使用指标（车龄小但里程高）
+    data['high_intensity_usage'] = ((data['vehicle_age_years'] < 3) & (data['kilometer'] > 80000)).astype(int)
+    
+    # 创建低强度使用指标（车龄大但里程低）
+    data['low_intensity_usage'] = ((data['vehicle_age_years'] > 8) & (data['kilometer'] < 30000)).astype(int)
+    
     return data
 
 # 创建车辆特征
@@ -326,6 +396,12 @@ def feature_selection(data, categorical_cols):
     # 确保brand_model也被标记为分类特征
     if 'brand_model' not in categorical_cols and 'brand_model' in data.columns:
         categorical_cols.append('brand_model')
+    
+    # 添加新增的交互组合特征到分类特征列表
+    interaction_features = ['brand_bodyType', 'brand_gearbox', 'age_km_segment', 'age_segment_detailed', 'km_segment']
+    for feature in interaction_features:
+        if feature not in categorical_cols and feature in data.columns:
+            categorical_cols.append(feature)
     
     # 转换分类特征
     for col in categorical_cols:
